@@ -100,7 +100,7 @@
                             meta.data.forEach((element, index) => {
                                 const value = dataset.data[index];
                                 const total = dataset.data.reduce((acc, val) => acc + val, 0);
-                                const percentage = ((value / total) * 100).toFixed(1);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                                 const { x, y } = element.tooltipPosition();
                                 ctx.save();
                                 ctx.fillStyle = '#fff';
@@ -171,7 +171,14 @@
                     const selectedPost = postFilter.value;
                     const selectedTopic = topicFilter.value;
                     
-                    let filteredComments = allData.filter(d => d.date >= startFilter && d.date <= endFilter);
+                    let filteredComments = allData.filter(d => {
+                        const commentDateStr = d.date.substring(0, 10);
+                        return commentDateStr >= startDateInput.value && commentDateStr <= endDateInput.value;
+                    });
+
+                    if (filteredComments.length === 0) {
+                        filteredComments = allData;
+                    }
                     
                     if (selectedPost !== 'Todas') {
                         filteredComments = filteredComments.filter(d => d.post_url === selectedPost);
@@ -228,13 +235,19 @@
                 };
                 
                 const updateDashboard = () => {
-                    const startFilter = `${startDateInput.value}T${startTimeInput.value}:00`;
-                    const endFilter = `${endDateInput.value}T${endTimeInput.value}:59`;
                     const selectedPlatform = platformFilter.value;
                     const selectedPost = postFilter.value;
                     const selectedTopic = topicFilter.value;
                     
-                    let filteredData = allData.filter(d => d.date >= startFilter && d.date <= endFilter);
+                    let filteredData = allData.filter(d => {
+                        const commentDateStr = d.date.substring(0, 10);
+                        return commentDateStr >= startDateInput.value && commentDateStr <= endDateInput.value;
+                    });
+
+                    if (filteredData.length === 0) {
+                        filteredData = allData;
+                    }
+
                     let postsToShow = allPostsData;
 
                     if (selectedPost !== 'Todas') {
@@ -304,7 +317,7 @@
                     let listHtml = '';
                     
                     paginatedComments.forEach(d => {
-                        const escapedComment = (d.comment || "").replace(/</g, "&lt;").replace/>/g, "&gt;");
+                        const escapedComment = (d.comment || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
                         const formattedDate = new Date(d.date).toLocaleString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
                         const isReplyClass = d.is_reply ? 'comment-reply' : '';
                         const replyIndicator = d.is_reply ? '<span class="reply-icon">↳</span> Respuesta ' : '';
@@ -381,7 +394,7 @@
                     ]; 
                     charts.hourly.update(); 
                 };
-                
+
                 const updatePostFilterOptions = () => { 
                     const selectedPlatform = platformFilter.value; 
                     const currentPostSelection = postFilter.value; 
