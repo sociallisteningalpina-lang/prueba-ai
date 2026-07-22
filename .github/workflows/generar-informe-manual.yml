@@ -1,0 +1,72 @@
+# Nombre del workflow que aparecerá en la pestaña "Actions"
+name: 'Generar Informe Manualmente'
+on:
+  workflow_dispatch:
+jobs:
+  generate-report-only:
+    runs-on: ubuntu-latest
+    # --- AÑADIDO: Permisos para que el robot pueda hacer 'git push' ---
+    permissions:
+      contents: write
+    steps:
+      # Paso 1: Descarga una copia de tu repositorio
+      - name: 1. Descargar el código del repositorio
+        uses: actions/checkout@v4
+      
+      # Paso 2: Configura el entorno de Python
+      - name: 2. Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      # Paso 3: Instala las librerías necesarias
+      - name: 3. Instalar las librerías necesarias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Paso 4 (DEBUG - Opcional, pero útil): Verifica que el Excel es el correcto
+      - name: 'DEBUG: Verificar qué archivos y commits ve el robot'
+        run: |
+          echo "--- 1. Mostrando el commit que se está usando ---"
+          git log -n 1
+          echo "--- 2. Listando los archivos descargados ---"
+          ls -lR
+          echo "--- 3. Leyendo las últimas filas del Excel con Python ---"
+          python -c "import pandas as pd; df = pd.read_excel('Comentarios Campaña.xlsx'); print('El archivo tiene', len(df), 'filas en total.'); print('--- MOSTRANDO LAS ÚLTIMAS 10 FILAS ---'); print(df.tail(10))"
+      
+      # Paso 5: Ejecuta tu script para generar el nuevo index.html
+      - name: 5. Ejecutar SÓLO la generación del informe
+        run: python generar_informe.py
+      
+      # Paso 6: Verificar que index.html fue generado
+      - name: 6. Verificar que index.html existe
+        run: |
+          if [ -f "index.html" ]; then
+            echo "✅ index.html generado correctamente"
+            ls -lh index.html
+          else
+            echo "❌ ERROR: index.html NO fue generado"
+            exit 1
+          fi
+      
+      # Paso 7: Subir el nuevo index.html al repositorio
+      - name: 7. Subir los archivos actualizados al repositorio
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # Añadir index.html
+          git add index.html
+          
+          # Verificar si hay cambios y hacer commit solo si los hay
+          if git diff --cached --quiet; then
+            echo "⚠️  No hay cambios en index.html (contenido idéntico al anterior)"
+            echo "✅ El informe ya estaba actualizado"
+          else
+            echo "✅ Cambios detectados, haciendo commit..."
+            TIMESTAMP=$(date +'%Y-%m-%d %H:%M:%S')
+            git commit -m "📊 Actualización manual del informe - $TIMESTAMP"
+            git push
+            echo "✅ Informe actualizado y subido correctamente"
+          fi

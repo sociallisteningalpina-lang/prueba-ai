@@ -1,0 +1,21 @@
+{
+  "campaign_info": {
+    "campaign_name": "Campaña Alpina Noviembre",
+    "campaign_id": "ALP_NOV_2025",
+    "campaign_mes": "Noviembre 2025",
+    "campaign_marca": "Alpina",
+    "campaign_referencia": "REF_001",
+    "campaign_objetivo": "Análisis de Sentimiento"
+  },
+  "extraction_settings": {
+    "max_retries": 3,
+    "max_comments_per_post": 500,
+    "pause_between_urls_min": 30,
+    "pause_between_urls_max": 60,
+    "solo_primer_post": false
+  },
+  "output_settings": {
+    "excel_filename": "Comentarios Campaña.xlsx",
+    "create_backup": true
+  }
+}
