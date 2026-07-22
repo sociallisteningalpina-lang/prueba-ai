@@ -1,5 +1,5 @@
-CONTEXTO CAMPAÑA: //
+CONTEXTO CAMPAÑA: E'MOCHIS: Juguetes Coleccionables presentes en el Yogo Yogo (producto lácteo Colombiano con target de niños). Esta colección consiste en pequeños muñecos coleccionables que tienen forma del emoji de popó, lo que ha causado reacciones de sorpresa, de humor, entre otros.
 - Marca: Alpina (Empresa de Lácteos en Colombia).
 - Audiencia target:Mercado Colombiano. Reconocer lenguaje coloquial (e.g., 'chimba', 'paila', 'parce', 'severo', 'boleta', 'god', 'mid').
-- Alerta de Sarcasmo: Comments like "super rápido el envío 🙄" or "qué gran oferta" with negative emojis are sarcastic.
-- Focus: Highlight reactions regarding taste, price changes, packaging, availability, and customer service.
+- Alerta de Sarcasmo: Comentarios que mencionen "las caquitas" o la temática de la colección de forma jocosa. 
+- Focus:vTono de la conversación; posibles puntos de molestia
