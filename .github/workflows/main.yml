@@ -2,8 +2,6 @@ name: Actualizar Dashboard Diario
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 12 * * *'
 
 jobs:
   build-and-deploy:
@@ -11,8 +9,8 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-    permissions:      # <--- AÑADIR ESTA SECCIÓN
-      contents: write # <--- PARA PERMITIR QUE EL ROBOT HAGA 'GIT PUSH'
+    permissions:
+      contents: write
 
     steps:
       - name: 1. Descargar el código del repositorio
@@ -31,6 +29,7 @@ jobs:
       - name: 4. Ejecutar el script principal para generar los archivos
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
 
       - name: 5. Subir los archivos actualizados al repositorio
@@ -38,5 +37,5 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add .
-          git diff-index --quiet HEAD || git commit -m "📊 Actualización automática del dashboard"
+          git diff-index --quiet HEAD || git commit -m "📊 Actualización manual del dashboard"
           git push
