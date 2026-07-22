@@ -1,4 +1,5 @@
 pandas
-apify-client
-pysentimiento
 openpyxl
+apify-client
+google-genai
+pydantic
