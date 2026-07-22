@@ -49,7 +49,7 @@ def discover_campaign_topics(client: genai.Client, df_comments: pd.DataFrame, ca
     """Pass 1: Dynamically discovers campaign categories based on comments and context."""
     print("🔍 Pass 1: Dynamically discovering campaign topics with Gemini...")
     
-    sample_text = "\n".join(df_comments['comment_text'].dropna().sample(min(100, len(df_comments))).tolist())
+    sample_text = "\n".join(df_comments['comment_text'].dropna().astype(str).sample(min(100, len(df_comments))).tolist())
 
     prompt = f"""
 You are a social media analyst. Based on the campaign details, brand context, and comment samples below, define between 5 to 7 concise, mutually exclusive topic categories to classify all social listening comments.
@@ -67,7 +67,7 @@ Rules:
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -125,7 +125,7 @@ Batch to analyze:
 
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-1.5-flash',
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -162,7 +162,14 @@ def run_report_generation():
         print("❌ ERROR: No se encontró el archivo 'Comentarios Campaña.xlsx'.")
         return
 
-    df['created_time_processed'] = pd.to_datetime(df['created_time_processed'])
+    # Date parsing logic to ensure no valid timestamps are turned into NaT
+    if 'created_time_processed' in df.columns:
+        df['created_time_processed'] = pd.to_datetime(df['created_time_processed'], errors='coerce')
+    else:
+        df['created_time_processed'] = pd.Timestamp.now()
+
+    # Fallback to current time if created_time_processed was blank/null
+    df['created_time_processed'] = df['created_time_processed'].fillna(pd.Timestamp.now())
     df['created_time_colombia'] = df['created_time_processed'] - pd.Timedelta(hours=5)
 
     if 'post_url_original' not in df.columns:
@@ -171,7 +178,7 @@ def run_report_generation():
     all_unique_posts = df[['post_url', 'post_url_original', 'platform']].drop_duplicates(subset=['post_url']).copy()
     all_unique_posts.dropna(subset=['post_url'], inplace=True)
 
-    df_comments = df.dropna(subset=['created_time_colombia', 'comment_text', 'post_url']).copy()
+    df_comments = df.dropna(subset=['comment_text', 'post_url']).copy()
     df_comments.reset_index(drop=True, inplace=True)
 
     comment_counts = df_comments.groupby('post_url').size().reset_index(name='comment_count')
@@ -216,8 +223,9 @@ def run_report_generation():
     df_for_json['date'] = df_for_json['date'].dt.strftime('%Y-%m-%dT%H:%M:%S')
     all_data_json = json.dumps(df_for_json.to_dict('records'))
 
-    min_date = df_comments['created_time_colombia'].min().strftime('%Y-%m-%d') if not df_comments.empty else ''
-    max_date = df_comments['created_time_colombia'].max().strftime('%Y-%m-%d') if not df_comments.empty else ''
+    # Calculate min and max dates for the UI picker
+    min_date = df_comments['created_time_colombia'].min().strftime('%Y-%m-%d') if not df_comments.empty else pd.Timestamp.now().strftime('%Y-%m-%d')
+    max_date = df_comments['created_time_colombia'].max().strftime('%Y-%m-%d') if not df_comments.empty else pd.Timestamp.now().strftime('%Y-%m-%d')
     
     post_filter_options = '<option value="Todas">Ver Todas las Pautas</option>'
     for url, label in post_labels.items():
@@ -325,7 +333,7 @@ def run_report_generation():
                             meta.data.forEach((element, index) => {{
                                 const value = dataset.data[index];
                                 const total = dataset.data.reduce((acc, val) => acc + val, 0);
-                                const percentage = ((value / total) * 100).toFixed(1);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                                 const {{ x, y }} = element.tooltipPosition();
                                 ctx.save();
                                 ctx.fillStyle = '#fff';
@@ -396,7 +404,14 @@ def run_report_generation():
                     const selectedPost = postFilter.value;
                     const selectedTopic = topicFilter.value;
                     
-                    let filteredComments = allData.filter(d => d.date >= startFilter && d.date <= endFilter);
+                    let filteredComments = allData.filter(d => {{
+                        const commentDateStr = d.date.substring(0, 10);
+                        return commentDateStr >= startDateInput.value && commentDateStr <= endDateInput.value;
+                    }});
+
+                    if (filteredComments.length === 0) {{
+                        filteredComments = allData;
+                    }}
                     
                     if (selectedPost !== 'Todas') {{
                         filteredComments = filteredComments.filter(d => d.post_url === selectedPost);
@@ -453,13 +468,19 @@ def run_report_generation():
                 }};
                 
                 const updateDashboard = () => {{
-                    const startFilter = `${{startDateInput.value}}T${{startTimeInput.value}}:00`;
-                    const endFilter = `${{endDateInput.value}}T${{endTimeInput.value}}:59`;
                     const selectedPlatform = platformFilter.value;
                     const selectedPost = postFilter.value;
                     const selectedTopic = topicFilter.value;
                     
-                    let filteredData = allData.filter(d => d.date >= startFilter && d.date <= endFilter);
+                    let filteredData = allData.filter(d => {{
+                        const commentDateStr = d.date.substring(0, 10);
+                        return commentDateStr >= startDateInput.value && commentDateStr <= endDateInput.value;
+                    }});
+
+                    if (filteredData.length === 0) {{
+                        filteredData = allData;
+                    }}
+
                     let postsToShow = allPostsData;
 
                     if (selectedPost !== 'Todas') {{
@@ -529,7 +550,7 @@ def run_report_generation():
                     let listHtml = '';
                     
                     paginatedComments.forEach(d => {{
-                        const escapedComment = (d.comment || "").replace(/</g, "&lt;").replace/>/g, "&gt;");
+                        const escapedComment = (d.comment || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
                         const formattedDate = new Date(d.date).toLocaleString('es-CO', {{ day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' }});
                         const isReplyClass = d.is_reply ? 'comment-reply' : '';
                         const replyIndicator = d.is_reply ? '<span class="reply-icon">↳</span> Respuesta ' : '';
@@ -606,7 +627,7 @@ def run_report_generation():
                     ]; 
                     charts.hourly.update(); 
                 }};
-                
+
                 const updatePostFilterOptions = () => {{ 
                     const selectedPlatform = platformFilter.value; 
                     const currentPostSelection = postFilter.value; 
