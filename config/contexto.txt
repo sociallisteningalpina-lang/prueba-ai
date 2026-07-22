@@ -1,0 +1,5 @@
+CONTEXTO CAMPAÑA: //
+- Marca: Alpina (Empresa de Lácteos en Colombia).
+- Audiencia target:Mercado Colombiano. Reconocer lenguaje coloquial (e.g., 'chimba', 'paila', 'parce', 'severo', 'boleta', 'god', 'mid').
+- Alerta de Sarcasmo: Comments like "super rápido el envío 🙄" or "qué gran oferta" with negative emojis are sarcastic.
+- Focus: Highlight reactions regarding taste, price changes, packaging, availability, and customer service.
