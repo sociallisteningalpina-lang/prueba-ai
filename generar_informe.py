@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import json
 import sys
+import time
 from pathlib import Path
 from pydantic import BaseModel
 from google import genai
@@ -33,7 +34,7 @@ def load_campaign_info() -> dict:
 
 
 # ============================================================================
-# GEMINI DYNAMIC CLASSIFICATION
+# GEMINI DYNAMIC CLASSIFICATION WITH RETRY LOGIC
 # ============================================================================
 
 class DiscoveredTopics(BaseModel):
@@ -43,6 +44,39 @@ class CommentResult(BaseModel):
     index: int
     sentiment: str  # Positivo, Negativo, Neutro
     topic: str
+
+
+def generate_content_with_retry(client: genai.Client, prompt: str, schema, max_retries: int = 3, initial_delay: int = 15):
+    """
+    Calls Gemini API with automatic exponential backoff retry when hitting 429 Rate Limits.
+    """
+    model_name = 'gemini-2.0-flash'
+    delay = initial_delay
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.1,
+                ),
+            )
+            return response
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                if attempt < max_retries:
+                    print(f"⏳ Rate limit hit (429). Waiting {delay} seconds before retry {attempt}/{max_retries}...")
+                    time.sleep(delay)
+                    delay *= 2  # Double the wait time for the next attempt if needed
+                else:
+                    print(f"❌ Max retries reached for 429 Rate Limit error.")
+                    raise e
+            else:
+                raise e
 
 
 def discover_campaign_topics(client: genai.Client, df_comments: pd.DataFrame, campaign_info: dict, brand_context: str) -> list[str]:
@@ -66,15 +100,7 @@ Rules:
 """
 
     try:
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=DiscoveredTopics,
-                temperature=0.2,
-            ),
-        )
+        response = generate_content_with_retry(client, prompt, DiscoveredTopics)
         topics = json.loads(response.text).get('topics', ['General', 'Otros'])
         print(f"✅ Discovered Topics: {topics}")
         return topics
@@ -124,22 +150,17 @@ Batch to analyze:
 """
 
         try:
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=list[CommentResult],
-                    temperature=0.1,
-                ),
-            )
+            # Small pause between batches to prevent hitting RPM limits
+            time.sleep(2)
+            
+            response = generate_content_with_retry(client, prompt, list[CommentResult])
             parsed_results = json.loads(response.text)
             for item in parsed_results:
                 sentiments[item['index']] = item['sentiment']
                 topics[item['index']] = item['topic']
 
         except Exception as e:
-            print(f"⚠️ Error in batch starting at {i}: {e}")
+            print(f"⚠️ Error in batch starting at index {i}: {e}")
             for item in batch:
                 sentiments[item['index']] = 'Neutro'
                 topics[item['index']] = 'Otros'
