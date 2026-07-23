@@ -34,7 +34,7 @@ def load_campaign_info() -> dict:
 
 
 # ============================================================================
-# GEMINI DYNAMIC CLASSIFICATION WITH RETRY LOGIC
+# GEMINI CLASSIFICATION WITH MODEL FALLBACK & RETRIES
 # ============================================================================
 
 class DiscoveredTopics(BaseModel):
@@ -46,14 +46,14 @@ class CommentResult(BaseModel):
     topic: str
 
 
-def generate_content_with_retry(client: genai.Client, prompt: str, schema, max_retries: int = 3, initial_delay: int = 15):
+def generate_content_with_fallback(client: genai.Client, prompt: str, schema):
     """
-    Calls Gemini API with automatic exponential backoff retry when hitting 429 Rate Limits.
+    Tries gemini-2.0-flash-lite first, falling back to gemini-2.0-flash if quota is exceeded.
     """
-    model_name = 'gemini-2.0-flash'
-    delay = initial_delay
-
-    for attempt in range(1, max_retries + 1):
+    candidate_models = ['gemini-2.0-flash-lite', 'gemini-2.0-flash']
+    
+    for model_name in candidate_models:
+        print(f"🤖 Attempting classification using model: {model_name}...")
         try:
             response = client.models.generate_content(
                 model=model_name,
@@ -68,15 +68,14 @@ def generate_content_with_retry(client: genai.Client, prompt: str, schema, max_r
         except Exception as e:
             error_msg = str(e)
             if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                if attempt < max_retries:
-                    print(f"⏳ Rate limit hit (429). Waiting {delay} seconds before retry {attempt}/{max_retries}...")
-                    time.sleep(delay)
-                    delay *= 2  # Double the wait time for the next attempt if needed
-                else:
-                    print(f"❌ Max retries reached for 429 Rate Limit error.")
-                    raise e
+                print(f"⚠️ Quota limit hit for {model_name}. Trying fallback model...")
+                time.sleep(3)
+                continue
             else:
+                print(f"❌ Error with model {model_name}: {e}")
                 raise e
+                
+    raise RuntimeError("All Gemini models failed due to rate limits or API errors.")
 
 
 def discover_campaign_topics(client: genai.Client, df_comments: pd.DataFrame, campaign_info: dict, brand_context: str) -> list[str]:
@@ -100,7 +99,7 @@ Rules:
 """
 
     try:
-        response = generate_content_with_retry(client, prompt, DiscoveredTopics)
+        response = generate_content_with_fallback(client, prompt, DiscoveredTopics)
         topics = json.loads(response.text).get('topics', ['General', 'Otros'])
         print(f"✅ Discovered Topics: {topics}")
         return topics
@@ -150,10 +149,8 @@ Batch to analyze:
 """
 
         try:
-            # Small pause between batches to prevent hitting RPM limits
-            time.sleep(2)
-            
-            response = generate_content_with_retry(client, prompt, list[CommentResult])
+            time.sleep(2)  # Pause to avoid RPM spikes
+            response = generate_content_with_fallback(client, prompt, list[CommentResult])
             parsed_results = json.loads(response.text)
             for item in parsed_results:
                 sentiments[item['index']] = item['sentiment']
