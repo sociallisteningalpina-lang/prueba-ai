@@ -67,7 +67,7 @@ Rules:
 
     try:
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -125,7 +125,7 @@ Batch to analyze:
 
         try:
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-2.0-flash',
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -162,13 +162,11 @@ def run_report_generation():
         print("❌ ERROR: No se encontró el archivo 'Comentarios Campaña.xlsx'.")
         return
 
-    # Date parsing logic to ensure no valid timestamps are turned into NaT
     if 'created_time_processed' in df.columns:
         df['created_time_processed'] = pd.to_datetime(df['created_time_processed'], errors='coerce')
     else:
         df['created_time_processed'] = pd.Timestamp.now()
 
-    # Fallback to current time if created_time_processed was blank/null
     df['created_time_processed'] = df['created_time_processed'].fillna(pd.Timestamp.now())
     df['created_time_colombia'] = df['created_time_processed'] - pd.Timedelta(hours=5)
 
@@ -223,7 +221,6 @@ def run_report_generation():
     df_for_json['date'] = df_for_json['date'].dt.strftime('%Y-%m-%dT%H:%M:%S')
     all_data_json = json.dumps(df_for_json.to_dict('records'))
 
-    # Calculate min and max dates for the UI picker
     min_date = df_comments['created_time_colombia'].min().strftime('%Y-%m-%d') if not df_comments.empty else pd.Timestamp.now().strftime('%Y-%m-%d')
     max_date = df_comments['created_time_colombia'].max().strftime('%Y-%m-%d') if not df_comments.empty else pd.Timestamp.now().strftime('%Y-%m-%d')
     
@@ -398,8 +395,6 @@ def run_report_generation():
                 let commentsSentimentFilter = 'Todos';
 
                 const updatePostLinks = () => {{
-                    const startFilter = `${{startDateInput.value}}T${{startTimeInput.value}}:00`;
-                    const endFilter = `${{endDateInput.value}}T${{endTimeInput.value}}:59`;
                     const selectedPlatform = platformFilter.value;
                     const selectedPost = postFilter.value;
                     const selectedTopic = topicFilter.value;
